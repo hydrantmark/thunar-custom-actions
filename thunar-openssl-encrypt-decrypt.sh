@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
 # Symmetric encryption and decryption using openssl.
 #
@@ -78,8 +78,7 @@ fi
 
 
 chooseOptions () {
-	algorithms=$(openssl enc --help 2>&1 \
-		| grep -A 200 'Cipher Types' \
+	algorithms=$(openssl enc -ciphers 2>&1 \
 		| grep '^-' \
 		| xargs \
 		| sed -e 's/^-//' -e 's/ -/|/g')

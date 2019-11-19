@@ -56,19 +56,115 @@ usage() {
 	echo
 }
 
-
+################################################################################
 #
-# Get email by secret key.
+# GET PUBLIC KEYS
 #
-# @param	string	Secret key
-# @output	string	Email
-#
-getMailBySecKey() {
-	_sec="$1"
-	_mail="$(gpg --list-secret-keys --keyid-format short | grep -A 1 "${_sec}" | tail -n1 | sed 's/uid[[:space:]]*//g')"
-
-	echo "${_mail}"
+################################################################################
+getAllPubKeysShort() {
+	gpg --list-public-keys --keyid-format short 2>/dev/null | \
+		/bin/grep '^pub' | \
+		/bin/sed 's/^pub[[:space:]]*[0-9]*.\///g' | \
+		/bin/grep -oE '^[0-9A-Fa-f]+'
 }
+getNameByPubKey() {
+	_key="${1}"
+	if [ "${_key}" = "" ]; then
+		echo ""
+		return
+	fi
+	gpg --list-public-keys --keyid-format short "${_key}" 2>/dev/null | \
+		/bin/grep '^uid' | \
+		/bin/sed 's/^uid[[:space:]]*//g' | \
+		 /bin/sed 's/\s*<.*@.*>$//g'
+}
+getMailByPubKey() {
+	_key="${1}"
+	if [ "${_key}" = "" ]; then
+		echo ""
+		return
+	fi
+	gpg --list-public-keys --keyid-format short "${_key}" 2>/dev/null | \
+		/bin/grep '^uid' | \
+		/bin/sed 's/^uid[[:space:]]*//g' | \
+		/bin/grep -oE '<.+@.+>' | \
+		/bin/sed 's/<//g' | \
+		/bin/sed 's/>//g'
+
+}
+getBitByPubKey() {
+	_key="${1}"
+	if [ "${_key}" = "" ]; then
+		echo ""
+		return
+	fi
+	gpg --list-public-keys --keyid-format short "${_key}" 2>/dev/null | \
+		/bin/grep '^pub' | \
+		/bin/sed 's/^pub[[:space:]]*//g' | \
+		/bin/grep -oE '[0-9]+./' | \
+		/bin/grep -oE '[0-9]+'
+}
+
+
+################################################################################
+#
+# GET PRIVATE KEYS
+#
+################################################################################
+getAllSecKeysShort() {
+	gpg --list-secret-keys --keyid-format short 2>/dev/null | \
+		/bin/grep '^sec' | \
+		/bin/sed 's/^sec[[:space:]]*[0-9]*.\///g' | \
+		/bin/grep -oE '^[0-9A-Fa-f]+'
+}
+getNameBySecKey() {
+	_key="${1}"
+	if [ "${_key}" = "" ]; then
+		echo ""
+		return
+	fi
+	gpg --list-secret-keys --keyid-format short "${_key}" 2>/dev/null | \
+		/bin/grep '^uid' | \
+		/bin/sed 's/^uid[[:space:]]*//g' | \
+		 /bin/sed 's/\s*<.*@.*>$//g'
+}
+getMailBySecKey() {
+	_key="${1}"
+	if [ "${_key}" = "" ]; then
+		echo ""
+		return
+	fi
+	gpg --list-secret-keys --keyid-format short "${_key}" 2>/dev/null | \
+		/bin/grep '^uid' | \
+		/bin/sed 's/^uid[[:space:]]*//g' | \
+		/bin/grep -oE '<.+@.+>' | \
+		/bin/sed 's/<//g' | \
+		/bin/sed 's/>//g'thunar custom actions encrypt
+
+}
+getBitBySecKey() {
+	_key="${1}"
+	if [ "${_key}" = "" ]; then
+		echo ""
+		return
+	fi
+	gpg --list-secret-keys --keyid-format short "${_key}" 2>/dev/null | \
+		/bin/grep '^sec' | \
+		/bin/sed 's/^sec[[:space:]]*//g' | \
+		/bin/grep -oE '[0-9]+./' | \
+		/bin/grep -oE '[0-9]+'
+}
+
+
+
+
+
+
+################################################################################
+#
+# ZENITY FUNCTIONS
+#
+################################################################################
 
 
 #
@@ -78,19 +174,22 @@ getMailBySecKey() {
 # @output	string	Public key string (bits, key, name, email)
 #
 chooseRecipient () {
-
-	pubkeys="$(gpg --list-public-keys --keyid-format short \
-	  | grep -A 1 "^pub" \
-	  | sed -n -e "s:^pub *\([A-Za-z0-9]\+\)/\([A-F0-9]\+\) .*$:\1 \2:p" -e "s:^uid *\(.*\)$:\"\1\":p" \
-	  | tr '\n' ' ')"
-
+	output=""
+	IFS='
+'
+	for key in $( getAllPubKeysShort ); do
+		name="$( getNameByPubKey "${key}" )"
+		mail="$( getMailByPubKey "${key}" )"
+		bit="$( getBitByPubKey "${key}" )"
+		output="${output}\"${bit}\" \"${key}\" \"${name}\" \"${mail}\" "
+	done
 
 	CMD="zenity --list \
 	       --width=550 --height=250 \
 	       --title=\"GPG Encrypt File for...\" \
 	       --print-column=2 \
 	       --text=\"Choose Recipient\" \
-	       --column=\"Bit\" --column=\"Key\" --column=\"Recipient\" ${pubkeys}"
+	       --column=\"Bit\" --column=\"Key\" --column=\"Name\" --column=\"Email\" ${output}"
 
 	eval "${CMD}"
 }
@@ -103,19 +202,22 @@ chooseRecipient () {
 # @output	string	Private key string (bits, key, name, email)
 #
 chooseSecret () {
-
-	seckeys="$(gpg --list-secret-keys --keyid-format short \
-	  | grep -A 1 "^sec" \
-	  | sed -n -e "s:^sec *\([A-Za-z0-9]\+\)/\([A-F0-9]\+\) .*$:\1 \2:p" -e "s:^uid *\(.*\)$:\"\1\":p" \
-	  | tr '\n' ' ')"
-
+	output=""
+	IFS='
+'
+	for key in $( getAllSecKeysShort ); do
+		name="$( getNameBySecKey "${key}" )"
+		mail="$( getMailBySecKey "${key}" )"
+		bit="$( getBitBySecKey "${key}" )"
+		output="${output}\"${bit}\" \"${key}\" \"${name}\" \"${mail}\" "
+	done
 
 	CMD="zenity --list \
 	       --width=550 --height=250 \
 	       --title=\"Choose private key...\" \
 	       --print-column=2 \
 	       --text=\"Choose your private key\" \
-	       --column=\"Bit\" --column=\"Key\" --column=\"Secret Key\" ${seckeys}"
+	       --column=\"Bit\" --column=\"Key\" --column=\"Name\" --column=\"Email\" ${output}"
 
 	eval "${CMD}"
 }
@@ -129,7 +231,7 @@ chooseSecret () {
 readPassword () {
 	_my_key="$1"
 	_my_mail="$(getMailBySecKey "${_my_key}")"
-	printf "SETDESC Enter your password for: %s (%s)\nGETPIN\n" "${_my_key}" "${_my_mail}" | ${BIN_PINENTRY} 2> /dev/null | grep "D" | awk '{print $2}'
+	printf "SETDESC Enter your password for: %s (%s)\nGETPIN\n" "${_my_key}" "${_my_mail}" | ${BIN_PINENTRY} 2> /dev/null | /bin/grep "D" | awk '{print $2}'
 }
 
 
@@ -212,7 +314,6 @@ fi
 #
 ################################################################################
 
-
 r="$(chooseRecipient)"
 if [ -z "${r}" ]; then
 	zenity --error --text="No Recipient specified."
@@ -259,5 +360,4 @@ else
 	zenity --info --text="Encrypted."
 	exit $?
 fi
-
 
